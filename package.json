@@ -59,7 +59,7 @@
     "react-dom": "^19.2.5",
     "sanitize-html": "^2.17.3",
     "shiki": "^4.1.0",
-    "tailwind-merge": "^3.5.0",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.2.4",
     "winston": "^3.19.0"
   },
