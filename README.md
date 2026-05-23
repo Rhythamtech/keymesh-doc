@@ -1,317 +1,188 @@
-# semantic-docs
+# 🗝️ KeyMesh
 
-[![Coverage](https://img.shields.io/codecov/c/github/llbbl/semantic-docs?label=coverage)](https://codecov.io/gh/llbbl/semantic-docs) [![CI](https://github.com/llbbl/semantic-docs/actions/workflows/ci.yml/badge.svg)](https://github.com/llbbl/semantic-docs/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/llbbl/semantic-docs)](https://github.com/llbbl/semantic-docs/releases)
+**A simple, safe tool to manage and share multiple API keys for AI applications.**
 
-Documentation theme with semantic vector search.
+[![PyPI version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tool: uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Static Analysis: MyPy](https://img.shields.io/badge/types-Mypy%20%28Strict%29-blue.svg)](https://github.com/python/mypy)
 
-A beautiful, dark-mode documentation theme powered by [libsql-search](https://github.com/llbbl/libsql-search) for semantic search capabilities. Perfect for technical documentation, knowledge bases, and content-heavy sites.
-
-## Features
-
-- 🎨 **Modern Dark UI** - Sleek design with OKLCH colors
-- 🔍 **Semantic Search** - AI-powered vector search in the header
-- 📱 **Responsive** - Mobile-friendly with collapsible sidebar
-- 📑 **Auto TOC** - Table of contents generated from headings
-- 🚀 **Edge-Ready** - Optimized for Turso's global database
-- ⚡ **Fast** - Static generation with server-rendered search
-- 🎯 **Type-Safe** - Full TypeScript support
-
-## Quick Start
-
-### 1. Clone or Use as Template
-
-```bash
-git clone https://github.com/llbbl/semantic-docs.git
-cd semantic-docs
-```
-
-Or use as a template on GitHub.
-
-### 2. Install Dependencies
-
-```bash
-pnpm install
-```
-
-Optional: use the `justfile` task runner for common commands:
-
-```bash
-just
-just dev
-just test
-```
-
-See `docs/just.md` for the full list of recipes.
-
-### 3. Set Up Environment
-
-Copy `.env.example` to `.env` and add your credentials:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-TURSO_DB_URL=libsql://your-database.turso.io
-TURSO_AUTH_TOKEN=your-auth-token
-```
-
-**Get Turso credentials:**
-
-```bash
-# Install Turso CLI
-curl -sSfL https://get.tur.so/install.sh | bash
-
-# Sign up and authenticate
-turso auth signup
-
-# Create a database
-turso db create my-docs
-
-# Get credentials
-turso db show my-docs
-```
-
-### 4. Add Your Content
-
-Create markdown files in `./content`:
-
-```bash
-mkdir -p content/getting-started
-echo "# Hello World\n\nThis is my first article." > content/getting-started/intro.md
-```
-
-**Front matter support:**
-
-```markdown
----
-title: Getting Started
-tags: [tutorial, beginner]
 ---
 
-# Getting Started
+## 📖 What is KeyMesh?
 
-Your content here...
+KeyMesh is a fast Python tool designed to **share work across multiple API keys** (like OpenAI, Anthropic, Gemini, or OpenRouter). 
+
+By automatically distributing your API requests across a pool of keys, it helps you avoid the annoying **"429 Too Many Requests"** (rate limit) errors. It combines multiple cheap or free keys to give you the speed and capacity of a premium key.
+
+> [!IMPORTANT]
+> **Read the Plain-English Guide:**
+> For a detailed, easy-to-read explanation of how KeyMesh works, safety rules, and advanced provider setups, see our complete [KEYMESH_DOCUMENTATION.md](file:///Users/rhythamnegi/Code/keymesh-doc/KEYMESH_DOCUMENTATION.md).
+
+---
+
+## ✨ Key Features
+
+* **🚀 High Speed:** Group multiple keys to act as a single high-tier key, maximizing your request capacity.
+* **🔌 Zero Network Latency:** KeyMesh does **not** sit between your application and the internet (it is not a proxy). It operates locally on your machine, adding exactly zero delays.
+* **🛡️ Safe for Parallel Code:** Works perfectly with both asynchronous (`asyncio`) loops and standard multi-threaded Python code.
+* **❄️ Smart Breaks (Cooldowns):** If a key hits a rate limit, KeyMesh takes it out of rotation, gives it a break, and automatically uses other keys.
+* **📊 Speed & Health Tracking:** Tracks response times and logs failures to keep your API calls running smoothly.
+* **💾 File Saving:** Can automatically save key health data to a local file so your settings survive when your app restarts.
+
+---
+
+## 🔄 How it Works
+
+KeyMesh is very simple: your code asks KeyMesh for the best key, calls the AI provider directly using your favorite library (like `openai`), and then tells KeyMesh if the call worked or failed.
+
+```mermaid
+flowchart LR
+    App[Your App] -->|1. Get a key| Pool[KeyMesh Pool]
+    Pool -->|2. Choose best key| Sched[Scheduler]
+    Pool -->|3. Return key| App
+    App -->|4. Call AI directly| Provider[OpenAI / Anthropic]
+    App -->|5. Release key & report speed| Pool
 ```
 
-### 5. Index Content
+---
+
+## 📦 Installation
+
+KeyMesh is easy to install using your preferred tool:
 
 ```bash
-# Initialize database and index content to Turso
-pnpm db:init
-pnpm index
+# Using uv (highly recommended)
+uv add keymesh
 
-# Or use local database without Turso (for testing)
-pnpm db:init:local
-pnpm index:local
+# Using standard pip
+pip install keymesh
 ```
 
-This will:
-- Scan your markdown files
-- Generate embeddings (using local model by default)
-- Store everything in Turso (or local.db with `:local` commands)
+---
 
-### 6. Start Development
+## ⚡ Quick Start Example (Based on `example.py`)
+
+Here is how you can use KeyMesh's recommended **`with_options`** approach to safely override your key per-request under high concurrency. This copies your client configuration for each request while sharing the underlying connection pool.
+
+```python
+import time
+import asyncio
+from openai import AsyncOpenAI
+from keymesh import KeyPool, SchedulerStrategy
+
+# 1. Initialize your client once (shares connection pooling)
+async_client = AsyncOpenAI(base_url=BASE_URL)
+
+async def run_async_with_options(pool: KeyPool) -> None:
+    try:
+        # 2. Get a key from the pool (LEAST_BUSY strategy avoids overloaded keys)
+        key = await pool.acquire()
+        start = time.monotonic()
+        try:
+            # 3. Create a safe request-scoped client reference
+            scoped_client = async_client.with_options(api_key=key)
+            response = await scoped_client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[{"role": "user", "content": "Say 'Options Async' in 3 words."}],
+            )
+            # 4. Release the key and log response speed
+            await pool.release(key, latency=time.monotonic() - start)
+            print(f"Success: {response.choices[0].message.content}")
+        except BaseException:
+            # Report failure so KeyMesh can prune dead keys
+            await pool.mark_failed(key)
+            raise
+    except Exception as e:
+        print(f"Failed: {e}")
+
+async def main():
+    pool = KeyPool(
+        keys=["sk-key-1", "sk-key-2", "sk-key-3"],
+        strategy=SchedulerStrategy.LEAST_BUSY
+    )
+    try:
+        await run_async_with_options(pool)
+    finally:
+        await pool.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## 🧬 Concurrency Warning: Don't Mix Up Your Keys!
+
+> [!WARNING]
+> **Avoid the Key-Mixing Bug (Race Condition)**
+> In parallel loops, **never** change the global key attribute of your client directly (`client.api_key = key`). This causes different tasks to overwrite each other's keys mid-request.
+
+Use **Context Managers** to keep your key selections clean, safe, and leak-free:
+
+```python
+import time
+import contextlib
+from typing import AsyncGenerator
+from openai import RateLimitError
+from keymesh import KeyPool
+
+@contextlib.asynccontextmanager
+async def use_key(pool: KeyPool) -> AsyncGenerator[str, None]:
+    key = await pool.acquire()
+    start_time = time.monotonic()
+    try:
+        yield key
+        await pool.release(key, latency=time.monotonic() - start_time)
+    except RateLimitError:
+        await pool.mark_rate_limited(key, cooldown=60.0)
+        raise
+    except Exception:
+        await pool.mark_failed(key)
+        raise
+
+# How to use safely:
+async with use_key(pool) as key:
+    scoped_client = client.with_options(api_key=key)
+    response = await scoped_client.chat.completions.create(...)
+```
+
+For synchronous multi-threaded scripts and setting up keys across different platforms (SiliconFlow, OpenRouter, DeepInfra, Ollama, LM Studio), check out the simple walkthroughs in [KEYMESH_DOCUMENTATION.md](file:///Users/rhythamnegi/Code/keymesh-doc/KEYMESH_DOCUMENTATION.md).
+
+---
+
+## ✅ Quick Do's & Don'ts
+
+| Do's (Best Practices) | Don'ts (Common Mistakes) |
+| :--- | :--- |
+| **DO** reuse a single client instance to keep network connection pools fast. | **DON'T** change the global `client.api_key = key` attribute in parallel loops. |
+| **DO** use `client.with_options(api_key=key)` to copy client configurations safely per request. | **DON'T** create new clients (`client = AsyncOpenAI()`) inside your request loops. |
+| **DO** use context managers to guarantee keys are returned to the pool if code crashes. | **DON'T** add delays like `time.sleep()` when a key hits rate limits (let KeyMesh handle it). |
+| **DO** use `JSONStorage` in production so key statistics and cooldowns survive server restarts. | **DON'T** forget to call `pool.close()` when your application shuts down. |
+
+---
+
+## 🛠️ Local Development & Tools
+
+KeyMesh uses `uv` for easy environment setup, formatting, and running tests.
 
 ```bash
-pnpm dev
+# Set up virtual environment and install dependencies
+uv sync
+
+# Run code style formatting & lints
+uv run ruff check .
+
+# Check types
+uv run mypy .
+
+# Run test suites
+uv run pytest
 ```
 
-Visit `http://localhost:4321` to see your docs!
+---
 
-## Customization
+## 📄 License
 
-### Change Site Title
-
-Edit `src/components/DocsHeader.astro`:
-
-```astro
-<span class="font-sans">Your Site Name</span>
-```
-
-And `src/layouts/DocsLayout.astro`:
-
-```astro
-const { title = "Your Site Name", description = "Your description" } = Astro.props;
-```
-
-### Customize Colors
-
-Edit `src/styles/global.css` to change the color scheme. The theme uses OKLCH colors for smooth gradients and perceptual uniformity.
-
-### Embeddings
-
-Semantic search uses local embeddings by default, so no API keys are required.
-
-## Project Structure
-
-```
-semantic-docs/
-├── src/
-│   ├── components/
-│   │   ├── DocsHeader.astro    # Header with search
-│   │   ├── DocsSidebar.astro   # Navigation sidebar
-│   │   ├── DocsToc.tsx         # Table of contents
-│   │   └── Search.tsx          # Search component
-│   ├── layouts/
-│   │   └── DocsLayout.astro    # Main layout
-│   ├── lib/
-│   │   └── turso.ts            # Database client
-│   ├── pages/
-│   │   ├── api/
-│   │   │   └── search.json.ts  # Search API endpoint
-│   │   ├── content/
-│   │   │   └── [...slug].astro # Article pages
-│   │   └── index.astro         # Home page
-│   └── styles/
-│       └── global.css          # Global styles
-├── scripts/
-│   └── index-content.js        # Indexing script
-├── content/                    # Your markdown files
-├── astro.config.mjs
-├── package.json
-└── .env                        # Your credentials
-```
-
-## Deployment
-
-### Container-Based Platforms (Recommended)
-
-This project is designed to run on platforms that support Docker containers, such as:
-
-- [Railway](https://railway.app)
-- [Render](https://render.com)
-- [Fly.io](https://fly.io)
-- Google Cloud Run
-- AWS ECS/Fargate
-- Azure Container Apps
-- Coolify
-
-```bash
-# Build with Node.js adapter (default)
-pnpm build
-
-# The built application runs on Node.js and can be containerized
-# Set environment variables in your platform's dashboard
-```
-
-**Important:** Always run `pnpm index` before deploying to ensure content is indexed.
-
-### Vercel / Netlify
-
-> **Note**: These platforms have not been tested and cannot be recommended at this time.
-
-```bash
-# Build with Node.js adapter (default)
-pnpm build
-
-# Deploy
-vercel
-# or
-netlify deploy --prod
-
-# Add environment variables in platform dashboard
-```
-
-## Content Organization
-
-The theme automatically organizes content by folder:
-
-```
-content/
-├── getting-started/
-│   ├── intro.md
-│   └── installation.md
-├── guides/
-│   ├── configuration.md
-│   └── deployment.md
-└── reference/
-    └── api.md
-```
-
-Folders become collapsible sections in the sidebar.
-
-## Search
-
-The search bar in the header provides semantic search:
-
-- **Semantic matching**: Finds content by meaning, not just keywords
-- **Instant results**: Real-time as you type
-- **Smart ranking**: Most relevant results first
-- **Tag display**: Shows article tags in results
-
-Try searching for concepts rather than exact phrases!
-
-## Build for Production
-
-```bash
-# Index content
-pnpm index
-
-# Build site
-pnpm build
-
-# Preview
-pnpm preview
-```
-
-## Troubleshooting
-
-### Search not working
-
-1. Check `.env` file has correct credentials
-2. Ensure `output: 'server'` in `astro.config.mjs`
-3. Verify content is indexed: run `pnpm index`
-
-### Content not showing
-
-1. Run `pnpm index` to index your markdown files
-2. Check content is in `./content` directory
-3. Verify Turso database has data
-
-### Local embedding model slow
-
-First run downloads ~50MB model. Subsequent runs use cache.
-
-## Tech Stack
-
-- **Framework**: [Astro](https://astro.build) 5
-- **Search**: [libsql-search](https://github.com/llbbl/libsql-search)
-- **Database**: [Turso](https://turso.tech) (libSQL)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com) 4
-- **UI**: React islands for interactivity
-- **Embeddings**: Xenova (local)
-
-## Releases
-
-Releases are automated via GitHub Actions on every push to `main`. The version bump is determined by [conventional commit](https://www.conventionalcommits.org/) prefixes:
-
-| Commit Prefix | Version Bump | Example |
-|---|---|---|
-| `feat!:` or `BREAKING CHANGE` | **Major** (v2.0.0) | `feat!: redesign search API` |
-| `feat:` | **Minor** (v1.5.0) | `feat(deps): update 19 dependencies` |
-| `fix:`, `chore:`, `docs:`, etc. | **Patch** (v1.4.1) | `fix: handle empty search query` |
-
-The workflow automatically:
-1. Determines the next version from commit messages since the last tag
-2. Updates `package.json` version
-3. Runs type checking and tests
-4. Creates a version commit and git tag
-5. Generates a changelog with [git-cliff](https://git-cliff.org/) and publishes a GitHub Release
-
-To trigger a **minor** release for dependency updates, use `feat(deps):` instead of `chore(deps):` as the commit prefix.
-
-## License
-
-MIT
-
-## Support
-
-- [Issues](https://github.com/llbbl/semantic-docs/issues)
-- [Discussions](https://github.com/llbbl/semantic-docs/discussions)
-
-## Credits
-
-Built with [libsql-search](https://github.com/llbbl/libsql-search).
+KeyMesh is open-source software licensed under the [MIT License](LICENSE).

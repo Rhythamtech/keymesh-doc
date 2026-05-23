@@ -24,10 +24,17 @@ import ThemeSwitcherWithErrorBoundary from './ThemeSwitcherWithErrorBoundary.tsx
 
       <!-- Logo -->
       <a href="/" class="flex items-center gap-2 font-semibold shrink-0">
-        <div class="flex h-6 w-6 items-center justify-center rounded bg-foreground text-background font-mono text-sm">
-          A
-        </div>
-        <span class="font-sans hidden sm:inline">Astro Vault</span>
+        <img
+          src="/icon-light.jpg"
+          alt="KeyMesh Logo"
+          class="h-6 w-6 rounded-md object-cover block dark:hidden border border-neutral-200"
+        />
+        <img
+          src="/icon-dark.jpg"
+          alt="KeyMesh Logo"
+          class="h-6 w-6 rounded-md object-cover hidden dark:block border border-neutral-800"
+        />
+        <span class="font-sans hidden sm:inline">KeyMesh</span>
       </a>
 
       <!-- Search and Nav -->
@@ -41,7 +48,7 @@ import ThemeSwitcherWithErrorBoundary from './ThemeSwitcherWithErrorBoundary.tsx
         <nav class="flex items-center gap-2">
           <ThemeSwitcherWithErrorBoundary client:idle />
           <a
-            href="https://github.com/llbbl/semantic-docs"
+            href="https://github.com/rhythamnegi/keymesh"
             class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9 p-2"
             aria-label="GitHub"
             target="_blank"

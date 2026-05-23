@@ -189,7 +189,7 @@ export default function Search({
         </kbd>
       </button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
         <CommandInput
           placeholder={placeholder}
           value={query}

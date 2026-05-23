@@ -23,6 +23,12 @@ export default function ThemeSwitcher() {
       root.style.setProperty(cssVar, value);
     });
 
+    if (themeName !== 'light') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+
     try {
       localStorage.setItem('theme', themeName);
     } catch {

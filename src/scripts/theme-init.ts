@@ -14,4 +14,9 @@ if (theme) {
     const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
     root.style.setProperty(cssVar, value);
   });
+  if (savedTheme !== 'light') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
 }

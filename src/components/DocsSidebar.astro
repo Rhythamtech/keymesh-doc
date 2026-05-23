@@ -25,6 +25,35 @@ if (Astro.props.articles) {
   allArticles = (await getAllArticles(client)) as ArticleSummary[];
 }
 
+const FOLDER_ORDER = [
+  'getting-started',
+  'core-concepts',
+  'integration-patterns',
+  'advanced-guides',
+  'api-reference',
+];
+
+const ARTICLE_ORDER = [
+  // Getting Started
+  'getting-started/welcome',
+  'getting-started/quick-start',
+
+  // Core Concepts
+  'core-concepts/request-cycle',
+  'core-concepts/concurrency-safety',
+
+  // Integration Patterns
+  'integration-patterns/sdk-integration',
+  'integration-patterns/prevent-race-conditions',
+
+  // Advanced Guides
+  'advanced-guides/best-practices',
+  'advanced-guides/multi-provider-routing',
+
+  // API Reference
+  'api-reference/reference',
+];
+
 const articlesByFolder = allArticles.reduce(
   (acc, article) => {
     const folder = article.folder || 'root';
@@ -36,6 +65,24 @@ const articlesByFolder = allArticles.reduce(
   },
   {} as Record<string, typeof allArticles>,
 );
+
+const sortedFolders = Object.entries(articlesByFolder).sort(([a], [b]) => {
+  const indexA = FOLDER_ORDER.indexOf(a);
+  const indexB = FOLDER_ORDER.indexOf(b);
+  const valA = indexA === -1 ? 999 : indexA;
+  const valB = indexB === -1 ? 999 : indexB;
+  return valA - valB;
+});
+
+const getSortedArticles = (articles: typeof allArticles) => {
+  return [...articles].sort((a, b) => {
+    const indexA = ARTICLE_ORDER.indexOf(a.slug);
+    const indexB = ARTICLE_ORDER.indexOf(b.slug);
+    const valA = indexA === -1 ? 999 : indexA;
+    const valB = indexB === -1 ? 999 : indexB;
+    return valA - valB;
+  });
+};
 ---
 
 <aside
@@ -44,7 +91,7 @@ const articlesByFolder = allArticles.reduce(
 >
   <div class="py-6 px-6">
     <nav class="space-y-2">
-      {Object.entries(articlesByFolder).map(([folder, articles]) => (
+      {sortedFolders.map(([folder, articles]) => (
         <details open class="mb-4 group">
           <summary class="flex w-full items-center justify-between py-2 text-sm font-medium text-sidebar-foreground hover:text-sidebar-foreground/80 transition-colors cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             {formatFolderName(folder)}
@@ -58,7 +105,7 @@ const articlesByFolder = allArticles.reduce(
             </svg>
           </summary>
           <div class="mt-2 space-y-1">
-            {articles.map((article) => {
+            {getSortedArticles(articles).map((article) => {
               const href = `/content/${article.slug}`;
               const isActive = currentPath === href || currentPath.startsWith(href + '/');
 

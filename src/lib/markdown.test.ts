@@ -129,4 +129,18 @@ describe('marked', () => {
       expect(result).toContain('<blockquote>');
     });
   });
+
+  describe('mermaid and shiki rendering', () => {
+    it('should render mermaid diagram using beautiful-mermaid', async () => {
+      const result = await marked('```mermaid\nflowchart TD\n  A --> B\n```');
+      expect(result).toContain('<div class="mermaid-diagram">');
+      expect(result).toContain('<svg');
+    });
+
+    it('should render python code using shiki syntax highlighting', async () => {
+      const result = await marked('```python\nprint("hello")\n```');
+      expect(result).toContain('<pre class="shiki');
+      expect(result).toContain('hello');
+    });
+  });
 });

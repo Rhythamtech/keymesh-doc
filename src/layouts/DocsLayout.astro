@@ -13,8 +13,8 @@ interface Props {
 }
 
 const {
-  title = 'Astro Vault',
-  description = 'Documentation',
+  title = 'KeyMesh Documentation',
+  description = 'KeyMesh: Lightweight, concurrency-safe credential orchestration runtime for AI API systems',
   image,
 } = Astro.props;
 
@@ -25,7 +25,7 @@ const canonicalURL = new URL(Astro.url.pathname, siteUrl);
 const ogImage = image ? new URL(image, siteUrl).href : undefined;
 
 // Generate FOUC prevention script from themes.ts
-const foucScript = `(function(){var t=localStorage.getItem('theme')||'${defaultTheme}',c=${JSON.stringify(foucThemes)}[t];if(c){var d=document.documentElement.style;d.setProperty('--background',c.background);d.setProperty('--foreground',c.foreground);d.setProperty('--header',c.header);d.setProperty('--sidebar',c.sidebar);d.setProperty('--toc',c.toc)}})();`;
+const foucScript = `(function(){var t=localStorage.getItem('theme')||'${defaultTheme}',c=${JSON.stringify(foucThemes)}[t];if(c){var d=document.documentElement.style;d.setProperty('--background',c.background);d.setProperty('--foreground',c.foreground);d.setProperty('--header',c.header);d.setProperty('--sidebar',c.sidebar);d.setProperty('--toc',c.toc);if(t!=='light'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}})();`;
 ---
 
 <!doctype html>
