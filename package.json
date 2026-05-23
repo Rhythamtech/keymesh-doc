@@ -48,7 +48,7 @@
     "@logan/libsql-search": "npm:@jsr/logan__libsql-search@^0.1.3",
     "@radix-ui/react-dialog": "^1.1.15",
     "@tailwindcss/vite": "^4.2.4",
-    "astro": "^6.1.9",
+    "astro": "^6.3.7",
     "beautiful-mermaid": "^1.1.3",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
