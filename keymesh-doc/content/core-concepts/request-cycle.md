@@ -23,7 +23,7 @@ flowchart TD
         Scheduler
         State
         Storage[(Optional File Cache)]
-        State <.-> Storage
+        State <--> Storage
     end
     
     App -->|7a. Release Key & Log Latency| Pool

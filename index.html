@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeyMesh Documentation</title>
+    <script>
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="layout">
+        <header class="shell-header">
+            <button id="mobile-menu-btn" class="mobile-menu-btn">☰</button>
+            <h2>KeyMesh</h2>
+            <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+                <span class="theme-icon-light">☀️</span>
+                <span class="theme-icon-dark">🌙</span>
+            </button>
+        </header>
+        <div class="app-container">
+            <aside class="sidebar">
+                <nav class="sidebar-nav">
+                    <div class="sidebar-category"><h3>Getting Started</h3><ul><li><a href="#getting-started-welcome" data-id="getting-started-welcome">What is KeyMesh?</a></li><li><a href="#getting-started-quick-start" data-id="getting-started-quick-start">Quick Start</a></li></ul></div>
+                    <div class="sidebar-category"><h3>Core Concepts</h3><ul><li><a href="#core-concepts-request-cycle" data-id="core-concepts-request-cycle">The Request Cycle</a></li><li><a href="#core-concepts-concurrency-safety" data-id="core-concepts-concurrency-safety">Concurrency & Safety</a></li></ul></div>
+                    <div class="sidebar-category"><h3>Integration Patterns</h3><ul><li><a href="#integration-patterns-sdk-integration" data-id="integration-patterns-sdk-integration">SDK Integration Patterns</a></li><li><a href="#integration-patterns-prevent-race-conditions" data-id="integration-patterns-prevent-race-conditions">Preventing Race Conditions</a></li></ul></div>
+                    <div class="sidebar-category"><h3>Advanced Guides</h3><ul><li><a href="#advanced-guides-multi-provider-routing" data-id="advanced-guides-multi-provider-routing">Multi-Provider Routing</a></li><li><a href="#advanced-guides-best-practices" data-id="advanced-guides-best-practices">Best Practices</a></li></ul></div>
+                    <div class="sidebar-category"><h3>API Reference</h3><ul><li><a href="#api-reference-reference" data-id="api-reference-reference">API Reference</a></li></ul></div>
+                </nav>
+            </aside>
+            <main class="main-content">
+                <div class="content-container">
+                <section id="advanced-guides-best-practices" class="page-content" style="display: none;"><h1>Best Practices</h1>
+<p>Follow these guidelines to keep your application stable, fast, and bug-free under heavy traffic.</p>
+<hr>
+<h2>🟢 Do&#39;s (Best Practices)</h2>
+<ul>
+<li><strong>DO reuse a single client:</strong> Initialize your <code>AsyncOpenAI</code> or <code>OpenAI</code> client <strong>once</strong> at application start and reuse it across requests. This maintains persistent HTTP connection pools, dramatically reducing latency.</li>
+<li><strong>DO use scoped clients:</strong> Use <code>client.with_options(api_key=key)</code> to safely attach a key to a specific request without causing race conditions.</li>
+<li><strong>DO use Context Managers:</strong> Wrap your key calls in context managers (using <code>try/finally</code> or Python&#39;s <code>@contextmanager</code>) to ensure keys are always released back to the pool, even if a request crashes.</li>
+<li><strong>DO choose JSON storage in production:</strong> Use <code>JSONStorage</code> or <code>SyncJSONStorage</code> to persist cooldowns and latency metrics across application restarts.</li>
+<li><strong>DO set reasonable cooldowns:</strong> A 60-second cooldown is usually perfect. This gives rate-limited keys a brief break without keeping them out of action for too long.</li>
+</ul>
+<hr>
+<h2>🔴 Don&#39;t&#39;s (Common Mistakes)</h2>
+<ul>
+<li><strong>DON&#39;T mutate the global key:</strong> Never run <code>client.api_key = key</code> on a shared client inside parallel loops or multi-threaded codes. This will cause different concurrent requests to mix up their keys.</li>
+<li><strong>DON&#39;T instantiate clients inside request handlers:</strong> Do not call <code>client = AsyncOpenAI()</code> inside your request loops. Creating a client for every single request ruins connection reuse and hurts performance.</li>
+<li><strong>DON&#39;T block or sleep on rate limits:</strong> If a key hits a rate limit, do not call <code>time.sleep()</code>. Let KeyMesh handle the cooldown; it will automatically skip the cooling key and keep your app running at full speed.</li>
+<li><strong>DON&#39;T forget to close the pool:</strong> Always run <code>await pool.close()</code> or <code>pool.close()</code> when your application shuts down to save statistics and release storage locks safely.</li>
+<li><strong>DON&#39;T keep repeatedly failing keys:</strong> Clean up and remove keys that fail consecutively so KeyMesh does not waste time testing them.</li>
+</ul>
+</section><section id="advanced-guides-multi-provider-routing" class="page-content" style="display: none;"><h1>Multi-Provider Routing</h1>
+<p>A powerful feature of KeyMesh is pooling keys from <strong>different providers</strong> (like SiliconFlow, OpenRouter, DeepInfra, or local tools like Ollama and LM Studio) to run the same underlying models.</p>
+<hr>
+<h2>1. The Configuration Schema</h2>
+<p>To achieve this, map each API key to its provider metadata (endpoints, models, etc.) using a simple lookup dictionary:</p>
+<pre><code class="language-python">providers_config = {
+    &quot;sk-siliconflow-key-xyz&quot;: {
+        &quot;provider&quot;: &quot;siliconflow&quot;,
+        &quot;base_url&quot;: &quot;https://api.siliconflow.cn/v1&quot;,
+        &quot;model&quot;: &quot;MiniMaxAI/MiniMax-M2.5&quot;,
+    },
+    &quot;sk-openrouter-key-abc&quot;: {
+        &quot;provider&quot;: &quot;openrouter&quot;,
+        &quot;base_url&quot;: &quot;https://openrouter.ai/api/v1&quot;,
+        &quot;model&quot;: &quot;minimax/minimax-m2.7&quot;,
+    },
+    &quot;sk-lmstudio-local-key&quot;: {
+        &quot;provider&quot;: &quot;lmstudio&quot;,
+        &quot;base_url&quot;: &quot;http://localhost:1234/v1&quot;,
+        &quot;model&quot;: &quot;MiniMaxAI/minimax-m2&quot;,
+    }
+}
+</code></pre>
+<hr>
+<h2>2. Implementation: Dynamic Routing Pattern</h2>
+<p>When a key is acquired from the pool, use it to resolve the correct provider settings dynamically. Create a temporary client configuration matching that endpoint and execute the call:</p>
+<pre><code class="language-python">import asyncio
+import time
+from openai import AsyncOpenAI
+from keymesh import KeyPool
+
+async def run_dynamic_route(pool: KeyPool, config: dict, prompt: str):
+    # 1. Acquire key from pool
+    key = await pool.acquire()
+    start_time = time.monotonic()
+    
+    # 2. Look up provider settings mapped to this key
+    meta = config.get(key)
+    if not meta:
+        await pool.mark_failed(key)
+        raise ValueError(&quot;Key metadata missing from configuration schema!&quot;)
+        
+    base_url = meta[&quot;base_url&quot;]
+    model_name = meta[&quot;model&quot;]
+    provider = meta[&quot;provider&quot;]
+    
+    print(f&quot;Routing request to {provider} at {base_url} using model {model_name}&quot;)
+    
+    # 3. Create a temporary client for this provider
+    client = AsyncOpenAI(base_url=base_url, api_key=key)
+    
+    try:
+        # 4. Make the call
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: prompt}]
+        )
+        latency = time.monotonic() - start_time
+        
+        # 5. Release key on success
+        await pool.release(key, latency=latency)
+        print(f&quot;Success via {provider}: {response.choices[0].message.content[:30]}...&quot;)
+        
+    except Exception as e:
+        # 6. Differentiate rate limits from connection failures
+        if &quot;429&quot; in str(e) or &quot;rate&quot; in str(e).lower():
+            await pool.mark_rate_limited(key, cooldown=60.0)
+        else:
+            await pool.mark_failed(key)
+        raise e
+</code></pre>
+</section><section id="api-reference-reference" class="page-content" style="display: none;"><h1>API Reference</h1>
+<p>Detailed breakdown of KeyMesh classes, methods, strategies, and exceptions.</p>
+<hr>
+<h2>⚡ KeyPool (Async)</h2>
+<p>The primary pool manager class for asynchronous runtimes.</p>
+<h3><code>KeyPool(keys, strategy, storage, alpha)</code></h3>
+<p>Creates the key pool instance.</p>
+<ul>
+<li><strong><code>keys</code></strong> (<code>List[str]</code>): Raw API credentials to load.</li>
+<li><strong><code>strategy</code></strong> (<code>SchedulerStrategy</code>): Dynamic strategy to use. Default is <code>SchedulerStrategy.LEAST_BUSY</code>.</li>
+<li><strong><code>storage</code></strong> (<code>BaseStorage</code>): Storage engine to persist states. Default is <code>MemoryStorage</code>.</li>
+<li><strong><code>alpha</code></strong> (<code>float</code>): EMA smoothing factor between <code>0.0</code> and <code>1.0</code>. Default is <code>0.2</code>.</li>
+</ul>
+<h3><code>await pool.acquire()</code></h3>
+<p>Retrieves the next healthy credential from the pool.</p>
+<ul>
+<li><strong>Returns</strong>: <code>str</code> (API Key).</li>
+<li><strong>Raises</strong>: <code>KeyExhaustionError</code> if all keys are cooling down or broken.</li>
+</ul>
+<h3><code>await pool.release(key, latency)</code></h3>
+<p>Returns a key back to the pool, updating status and response time.</p>
+<ul>
+<li><strong><code>key</code></strong> (<code>str</code>): The key to return.</li>
+<li><strong><code>latency</code></strong> (<code>float</code>): Operation elapsed duration in seconds.</li>
+</ul>
+<h3><code>await pool.mark_rate_limited(key, cooldown)</code></h3>
+<p>Puts a key on cooldown, temporarily disabling it.</p>
+<ul>
+<li><strong><code>key</code></strong> (<code>str</code>): The rate-limited key.</li>
+<li><strong><code>cooldown</code></strong> (<code>float</code>): Cooldown duration in seconds.</li>
+</ul>
+<h3><code>await pool.mark_failed(key)</code></h3>
+<p>Tracks connection and other general client-side exceptions.</p>
+<ul>
+<li><strong><code>key</code></strong> (<code>str</code>): The failing key.</li>
+</ul>
+<h3><code>await pool.close()</code></h3>
+<p>Flushes current metrics to the storage backend and releases resources.</p>
+<hr>
+<h2>⚡ SyncKeyPool (Sync)</h2>
+<p>Thread-safe pool manager for synchronous runtimes. Methods are identical to <code>KeyPool</code> but do <strong>not</strong> require <code>await</code>.</p>
+<h3><code>SyncKeyPool(keys, strategy, storage, alpha)</code></h3>
+<p>Creates the sync key pool.</p>
+<h3><code>pool.acquire()</code></h3>
+<ul>
+<li><strong>Returns</strong>: <code>str</code>.</li>
+</ul>
+<h3><code>pool.release(key, latency)</code></h3>
+<h3><code>pool.mark_rate_limited(key, cooldown)</code></h3>
+<h3><code>pool.mark_failed(key)</code></h3>
+<h3><code>pool.close()</code></h3>
+<hr>
+<h2>🧭 Scheduler Strategies</h2>
+<p>Schedulers are stateless algorithms used to select credentials:</p>
+<ul>
+<li><strong><code>SchedulerStrategy.ROUND_ROBIN</code></strong>: Cycles through keys sequentially in a loop.</li>
+<li><strong><code>SchedulerStrategy.LEAST_BUSY</code></strong>: Prioritizes keys with the lowest current active concurrent requests.</li>
+<li><strong><code>SchedulerStrategy.WEIGHTED</code></strong>: Prioritizes keys based on their historical success rates and response speeds (EMA).</li>
+</ul>
+<hr>
+<h2>⚠️ Exceptions</h2>
+<p>All exceptions raised by KeyMesh inherit from a common base class:</p>
+<ul>
+<li><strong><code>KeyMeshError</code></strong>: Base exception class.<ul>
+<li><strong><code>KeyPoolEmptyError</code></strong>: Raised if you instantiate a pool without passing any keys.</li>
+<li><strong><code>KeyExhaustionError</code></strong>: Raised if all keys in the pool are currently in cooldown or marked as failed.</li>
+<li><strong><code>StorageError</code></strong>: Raised if the storage engine fails to load or save metrics.</li>
+</ul>
+</li>
+</ul>
+</section><section id="core-concepts-concurrency-safety" class="page-content" style="display: none;"><h1>Concurrency &amp; Safety</h1>
+<p>KeyMesh is built from the ground up for highly concurrent systems, guaranteeing that state modifications remain safe across threads and event loops.</p>
+<h2>🔒 State Mutation Locks</h2>
+<p>To prevent race conditions, KeyMesh splits its runtime representation into separate async-safe and thread-safe implementations:</p>
+<ol>
+<li><strong>Async Runtimes (<code>KeyState</code>)</strong>:
+In async programs (<code>asyncio</code>), all mutations to a key&#39;s health metrics and workload tracking must obtain the individual key&#39;s lock:<pre><code class="language-python">async with self._lock:
+    # Mutate active requests, success count, latencies, etc.
+</code></pre>
+</li>
+<li><strong>Threaded/Synchronous Runtimes (<code>SyncKeyState</code>)</strong>:
+In multi-threaded environments, KeyMesh relies on Python&#39;s standard <code>threading.Lock</code> to guarantee thread safety:<pre><code class="language-python">with self._lock:
+    # Safely update variables
+</code></pre>
+</li>
+</ol>
+<hr>
+<h2>⏳ Non-Blocking Cooldowns</h2>
+<p>When a key receives a <code>mark_rate_limited</code> report:</p>
+<ol>
+<li>It is assigned a monotonic expiration time (<code>cooldown_until</code>).</li>
+<li>Schedulers dynamically filter out any key that is currently cooling down.</li>
+<li>If all keys are in cooldown, KeyMesh raises a <code>KeyExhaustionError</code>.</li>
+</ol>
+<p>Because schedulers act as stateless selectors, they never pause or block the thread/event loop with sleep commands. Your application can immediately catch exceptions or check fallback paths without blocking other concurrent tasks.</p>
+<hr>
+<h2>📈 Latency Estimation (EMA)</h2>
+<p>Rather than keeping a huge history list of request durations, KeyMesh computes a running <strong>Exponential Moving Average (EMA)</strong> with a default smoothing factor ($\alpha$) of <code>0.2</code>.</p>
+<p>The mathematical formula used for updates is:</p>
+<p>$$\text{Latency}<em>{\text{avg}} = \alpha \cdot \text{Latency}</em>{\text{new}} + (1 - \alpha) \cdot \text{Latency}_{\text{prev}}$$</p>
+<h3>Why EMA?</h3>
+<ul>
+<li><strong>Recency bias</strong>: It prioritizes the latest network speeds while ignoring old, outdated latencies.</li>
+<li><strong>Resilience</strong>: A single slow connection spike will not permanently ruin a key&#39;s latency score.</li>
+<li><strong>Efficiency</strong>: Constant-time memory and execution footprints.</li>
+</ul>
+</section><section id="core-concepts-request-cycle" class="page-content" style="display: none;"><h1>The Request Cycle</h1>
+<p>KeyMesh operates on a simple, loop-based state machine containing three phases: <strong>Acquire ➔ Execute ➔ Report</strong>.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant App as Your Application
+    participant Pool as KeyPool / SyncKeyPool
+    participant Scheduler as Scheduler Strategy
+    participant State as Key Health & Metrics
+    participant Provider as OpenAI / Anthropic / Local AI
+    
+    App->>Pool: 1. Acquire Key
+    Pool->>Scheduler: 2. Select Best Key
+    Scheduler->>State: 3. Check Health & State
+    Pool-->>App: 4. Return Key String
+    App->>Provider: 5. Make API Call Directly
+    Provider-->>App: 6. Get Response
+    
+    alt Success
+        App->>Pool: 7a. Release Key & Log Latency
+    else Rate Limited
+        App->>Pool: 7b. Rate Limited (Cooldown)
+    else Failure
+        App->>Pool: 7c. Report Failure
+    end
+</code></pre>
+<hr>
+<h2>🧭 The Three Phases</h2>
+<h3>1. Acquire</h3>
+<p>When your code needs to perform an LLM inference, it requests a credential from KeyMesh:</p>
+<ul>
+<li><strong>Async</strong>: <code>key = await pool.acquire()</code></li>
+<li><strong>Sync</strong>: <code>key = pool.acquire()</code></li>
+</ul>
+<p>The pool delegates selection to the chosen <strong>Scheduler</strong>. Schedulers check key metrics (like concurrent request counts, average latency, and cooldown status) to choose the best available key.</p>
+<h3>2. Execute</h3>
+<p>Once the application gets the raw API key string from the pool, it directly calls the provider SDK. </p>
+<blockquote>
+<p>[!IMPORTANT]
+KeyMesh <strong>never</strong> intercepts the HTTP call. You pass the raw key to the standard client configurations. This ensures zero middleware overhead, maintaining the highest possible speed.</p>
+</blockquote>
+<h3>3. Report</h3>
+<p>After completing the execution, the application MUST report the outcome back to the pool:</p>
+<ul>
+<li><strong>Success</strong>: <code>pool.release(key, latency=0.25)</code> resets consecutive failures, decrements active workloads, and updates the Exponential Moving Average (EMA) latency.</li>
+<li><strong>Rate Limit (429)</strong>: <code>pool.mark_rate_limited(key, cooldown=60.0)</code> sets a cooldown timestamp. Schedulers will skip this key until the cooldown time expires.</li>
+<li><strong>Other Failures</strong>: <code>pool.mark_failed(key)</code> increments consecutive failure counts. If failures cross a threshold, the key can be pruned or deprioritized.</li>
+</ul>
+</section><section id="getting-started-quick-start" class="page-content" style="display: none;"><h1>Quick Start</h1>
+<p>Get up and running with KeyMesh in less than five minutes.</p>
+<h2>📥 Installation</h2>
+<p>Install KeyMesh using your preferred Python package manager. We recommend <code>uv</code> for speed and dependency resolution:</p>
+<pre><code class="language-bash"># Using uv (recommended)
+uv add keymesh
+
+# Using pip
+pip install keymesh
+</code></pre>
+<h2>⚡ Basic Usage</h2>
+<p>Here is how to initialize a pool of API keys and acquire one for an operation. KeyMesh provides both <strong>asynchronous (async)</strong> and <strong>synchronous (sync)</strong> APIs.</p>
+<h3>Asynchronous API (<code>KeyPool</code>)</h3>
+<p>For async runtimes (such as FastAPI, Tornado, or <code>asyncio</code> applications):</p>
+<pre><code class="language-python">from keymesh import KeyPool, SchedulerStrategy
+
+# 1. Initialize the KeyPool with a list of API keys
+pool = KeyPool(
+    keys=[&quot;sk-key-1&quot;, &quot;sk-key-2&quot;, &quot;sk-key-3&quot;],
+    strategy=SchedulerStrategy.LEAST_BUSY
+)
+
+# 2. Acquire a credential (non-blocking scheduler selection)
+key = await pool.acquire()
+
+try:
+    # 3. Use the key in any standard SDK or HTTP client directly
+    # (KeyMesh does not intercept the HTTP call itself)
+    response = await client.completions.create(api_key=key, ...)
+    
+    # 4. Release key back to the pool on success, reporting latency
+    await pool.release(key, latency=response.elapsed)
+    
+except RateLimitError:
+    # 5. Handle rate limits with a cooldown
+    await pool.mark_rate_limited(key, cooldown=60.0)
+    
+except Exception:
+    # 6. Track consecutive failures to prune dead keys
+    await pool.mark_failed(key)
+    
+finally:
+    # 7. Remember to shut down the pool when done to persist states
+    await pool.close()
+</code></pre>
+<h3>Synchronous API (<code>SyncKeyPool</code>)</h3>
+<p>For sync/multi-threaded runtimes (such as Django, Flask, or simple scripts):</p>
+<pre><code class="language-python">from keymesh import SyncKeyPool, SchedulerStrategy
+
+# 1. Initialize the SyncKeyPool
+pool = SyncKeyPool(
+    keys=[&quot;sk-key-1&quot;, &quot;sk-key-2&quot;, &quot;sk-key-3&quot;],
+    strategy=SchedulerStrategy.LEAST_BUSY
+)
+
+# 2. Acquire a credential
+key = pool.acquire()
+
+try:
+    # 3. Call your model
+    response = client.completions.create(api_key=key, ...)
+    
+    # 4. Release key back to the pool
+    pool.release(key, latency=response.elapsed)
+    
+except RateLimitError:
+    # 5. Put key on cooldown
+    pool.mark_rate_limited(key, cooldown=60.0)
+    
+except Exception:
+    # 6. Mark key failed
+    pool.mark_failed(key)
+    
+finally:
+    # 7. Close the pool
+    pool.close()
+</code></pre>
+</section><section id="getting-started-welcome" class="page-content" style="display: none;">
+    <div class="hero-section">
+        <h1 class="hero-title">The Zero-Latency<br><span class="text-gradient">Key Management Pool</span></h1>
+        <p class="hero-subtitle">
+            Never hit a 429 Rate Limit again. Combine multiple API keys into a high-throughput, async-safe pool that routes requests seamlessly locally.
+        </p>
+        <div class="hero-actions">
+            <a href="#getting-started-quick-start" class="btn btn-primary" onclick="document.querySelector('[data-id=\'getting-started-quick-start\']').click()">Quick Start</a>
+            <a href="#api-reference-reference" class="btn btn-secondary" onclick="document.querySelector('[data-id=\'api-reference-reference\']').click()">API Reference</a>
+        </div>
+    </div>
+
+    <div class="feature-grid-container">
+        <h2>🛡️ Built for Performance</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>No Middleman</h3>
+                <p>KeyMesh does <strong>not</strong> act as a proxy. It runs locally and tells your code which key to use next, guaranteeing <strong>zero added latency</strong>.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔌</div>
+                <h3>Any Client</h3>
+                <p>No wrappers or gateways needed. Use standard official SDKs like <code>openai</code>, <code>anthropic</code>, or raw <code>httpx</code> directly.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎮</div>
+                <h3>Full Control</h3>
+                <p>You make the request, and you report the outcome. KeyMesh simply tracks health and orchestrates the queue without getting in the way.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🧩</div>
+                <h3>Zero Couplings</h3>
+                <p>Completely framework-agnostic. Yields keys, tracks metrics, and works perfectly alongside any architecture.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="runtime-flow-container">
+        <h2>🚀 Runtime Flow</h2>
+        <p>KeyMesh coordinates credentials via a simple, high-performance async-safe flow:</p>
+        <ol class="styled-list">
+        <li><strong>Acquire</strong>: Request a key from <code>KeyPool</code> or <code>SyncKeyPool</code>.</li>
+        <li><strong>Select</strong>: The pool uses a <code>Scheduler</code> (Least Busy, Weighted) to pick the optimal key.</li>
+        <li><strong>Execute</strong>: Your application makes the API call directly to the provider.</li>
+        <li><strong>Report</strong>: Report the outcome (<code>release</code>, <code>mark_failed</code>, or <code>mark_rate_limited</code>) to update metrics.</li>
+        </ol>
+    </div>
+</section><section id="integration-patterns-prevent-race-conditions" class="page-content" style="display: none;"><h1>Preventing Race Conditions</h1>
+<p>A common pitfall when integrating a key manager with standard AI SDKs (like OpenAI or Anthropic) is mutating client-wide properties globally.</p>
+<h2>⚠️ The Key-Mixing Bug</h2>
+<p>If you have a single shared <code>client</code> instance and change its API key in place inside parallel request loops, you will suffer from race conditions where requests use the wrong keys:</p>
+<pre><code class="language-python"># 🚫 BUGGY ANTI-PATTERN: DO NOT DO THIS
+async def call_api(pool: KeyPool):
+    key = await pool.acquire()
+    try:
+        client.api_key = key # ❌ Global mutation!
+        response = await client.chat.completions.create(...)
+        await pool.release(key)
+    except Exception:
+        await pool.mark_failed(key)
+</code></pre>
+<h3>🚨 Detailed Race Condition Lifecycle</h3>
+<p>Here is exactly how requests get mixed up when mutating the client globally:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant EventLoop as Async Event Loop
+    participant TaskA as Task A (User 1)
+    participant TaskB as Task B (User 2)
+    participant Client as Shared OpenAI Client
+    
+    TaskA-&gt;&gt;Client: Change client.api_key to &quot;Key-A&quot;
+    TaskA-&gt;&gt;EventLoop: await chat.completions.create() [Wait for network]
+    Note over TaskA,EventLoop: Task A pauses to let other tasks run
+    
+    EventLoop-&gt;&gt;TaskB: Task B starts
+    TaskB-&gt;&gt;Client: Change client.api_key to &quot;Key-B&quot; (Overwrites Key-A!)
+    TaskB-&gt;&gt;EventLoop: await chat.completions.create() [Wait for network]
+    
+    Note over EventLoop: Network ready for Task A
+    EventLoop-&gt;&gt;Client: Prepare request headers for Task A
+    Note over Client: Reads shared client.api_key (which is now &quot;Key-B&quot;)
+    Client--&gt;&gt;TaskA: Task A request is sent using &quot;Key-B&quot; by mistake!
+    
+    Note over EventLoop: Network ready for Task B
+    Client--&gt;&gt;TaskB: Task B request is sent using &quot;Key-B&quot;
+    
+    Note over TaskA,TaskB: BOTH requests were sent using Key-B. Key-A sat idle.
+</code></pre>
+<hr>
+<h2>🛠️ The Fix</h2>
+<p>To ensure concurrency-safe executions, you must pass credentials dynamically per request. Do <strong>not</strong> mutate the shared client globally. </p>
+<p>Instead, use one of the following safe approaches:</p>
+<ol>
+<li><strong>Scoped Client Overrides</strong> (creating request-scoped configs via <code>with_options</code>).</li>
+<li><strong>Request Headers injection</strong> (injecting headers per call via <code>extra_headers</code>).</li>
+<li><strong>Automated Lifecycles</strong> (wrapping variables in context managers).</li>
+</ol>
+<p>Review the next section for detailed code implementations of these solutions.</p>
+</section><section id="integration-patterns-sdk-integration" class="page-content" style="display: none;"><h1>SDK Integration Patterns</h1>
+<p>KeyMesh offers three flexible and concurrency-safe patterns to run requests across your key pool.</p>
+<hr>
+<h2>Pattern 1: Scoped Client Overrides (<code>with_options</code>)</h2>
+<p>This is the recommended pattern for modern SDKs (like OpenAI or Anthropic). It creates a shallow copy of the client config pointing to the specific key for that single request, while sharing the underlying connection pool.</p>
+<h3>Asynchronous Options Example</h3>
+<pre><code class="language-python">import time
+from openai import AsyncOpenAI
+from keymesh import KeyPool
+
+async_client = AsyncOpenAI(base_url=&quot;https://api.openai.com/v1&quot;)
+
+async def run_async_with_options(pool: KeyPool) -&gt; None:
+    try:
+        # 1. Acquire key
+        key = await pool.acquire()
+        start = time.monotonic()
+        try:
+            # 2. Scope the client config override
+            scoped_client = async_client.with_options(api_key=key)
+            response = await scoped_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+            )
+            # 3. Release key and report latency
+            await pool.release(key, latency=time.monotonic() - start)
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+        except BaseException:
+            # 4. Report failure
+            await pool.mark_failed(key)
+            raise
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+<h3>Synchronous Options Example</h3>
+<pre><code class="language-python">import time
+from openai import OpenAI
+from keymesh import SyncKeyPool
+
+sync_client = OpenAI(base_url=&quot;https://api.openai.com/v1&quot;)
+
+def run_sync_with_options(pool: SyncKeyPool) -&gt; None:
+    try:
+        # 1. Acquire key
+        key = pool.acquire()
+        start = time.monotonic()
+        try:
+            # 2. Scope client override
+            scoped_client = sync_client.with_options(api_key=key)
+            response = scoped_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+            )
+            # 3. Release key
+            pool.release(key, latency=time.monotonic() - start)
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+        except BaseException:
+            # 4. Report failure
+            pool.mark_failed(key)
+            raise
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+<hr>
+<h2>Pattern 2: Per-Request Custom Headers (<code>extra_headers</code>)</h2>
+<p>This pattern passes the API key directly within the authorization header of each call. The global client state remains completely untouched.</p>
+<h3>Asynchronous Headers Example</h3>
+<pre><code class="language-python">async def run_async_headers(pool: KeyPool) -&gt; None:
+    try:
+        key = await pool.acquire()
+        start = time.monotonic()
+        try:
+            # Pass the Authorization header dynamically per-request
+            response = await async_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+                extra_headers={&quot;Authorization&quot;: f&quot;Bearer {key}&quot;}
+            )
+            await pool.release(key, latency=time.monotonic() - start)
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+        except BaseException:
+            await pool.mark_failed(key)
+            raise
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+<h3>Synchronous Headers Example</h3>
+<pre><code class="language-python">def run_sync_headers(pool: SyncKeyPool) -&gt; None:
+    try:
+        key = pool.acquire()
+        start = time.monotonic()
+        try:
+            response = sync_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+                extra_headers={&quot;Authorization&quot;: f&quot;Bearer {key}&quot;}
+            )
+            pool.release(key, latency=time.monotonic() - start)
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+        except BaseException:
+            pool.mark_failed(key)
+            raise
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+<hr>
+<h2>Pattern 3: Lifecycle Hooks (Context Managers)</h2>
+<p>To prevent key leaks when errors happen, wrap KeyMesh lifecycle actions inside a Python context manager block. This guarantees your keys are always returned and never leak.</p>
+<h3>Asynchronous Lifecycle Example</h3>
+<pre><code class="language-python">import contextlib
+import time
+from typing import AsyncGenerator
+from openai import RateLimitError
+from keymesh import KeyPool
+
+@contextlib.asynccontextmanager
+async def async_key_lifecycle(pool: KeyPool) -&gt; AsyncGenerator[str, None]:
+    key = await pool.acquire()
+    start = time.monotonic()
+    try:
+        yield key
+        await pool.release(key, latency=time.monotonic() - start)
+    except RateLimitError:
+        # Rate limit hit: put key on a 60-second cooldown
+        await pool.mark_rate_limited(key, cooldown=60.0)
+        raise
+    except BaseException:
+        # Other failures: mark key as failed
+        await pool.mark_failed(key)
+        raise
+
+# How to use it:
+async def run_async_lifecycle(pool: KeyPool) -&gt; None:
+    try:
+        async with async_key_lifecycle(pool) as key:
+            scoped_client = async_client.with_options(api_key=key)
+            response = await scoped_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+            )
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+<h3>Synchronous Lifecycle Example</h3>
+<pre><code class="language-python">import contextlib
+import time
+from typing import Generator
+from openai import RateLimitError
+from keymesh import SyncKeyPool
+
+@contextlib.contextmanager
+def sync_key_lifecycle(pool: SyncKeyPool) -&gt; Generator[str, None, None]:
+    key = pool.acquire()
+    start = time.monotonic()
+    try:
+        yield key
+        pool.release(key, latency=time.monotonic() - start)
+    except RateLimitError:
+        pool.mark_rate_limited(key, cooldown=60.0)
+        raise
+    except BaseException:
+        pool.mark_failed(key)
+        raise
+
+# How to use it:
+def run_sync_lifecycle(pool: SyncKeyPool) -&gt; None:
+    try:
+        with sync_key_lifecycle(pool) as key:
+            scoped_client = sync_client.with_options(api_key=key)
+            response = scoped_client.chat.completions.create(
+                model=&quot;gpt-4&quot;,
+                messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}],
+            )
+            print(f&quot;Success: {response.choices[0].message.content}&quot;)
+    except Exception as e:
+        print(f&quot;Failed: {e}&quot;)
+</code></pre>
+</section>
+            </div>
+        </main>
+        </div>
+    </div>
+    <script src="app.js"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        
+        // Expose a global render function for the theme toggle to call
+        window.renderMermaid = async () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDarkMode = currentTheme === 'dark';
+            
+            mermaid.initialize({ 
+                startOnLoad: false, 
+                theme: isDarkMode ? 'dark' : 'default',
+                securityLevel: 'loose'
+            });
+
+            // Restore original text and clear old SVGs
+            document.querySelectorAll('.mermaid').forEach(container => {
+                if (container.dataset.originalText) {
+                    container.removeAttribute('data-processed');
+                    container.innerHTML = container.dataset.originalText;
+                }
+            });
+
+            await mermaid.run({ querySelector: '.mermaid' });
+        };
+
+        // Transform existing markdown codeblocks into mermaid compatible pre tags
+        document.addEventListener('DOMContentLoaded', async () => {
+            const mermaidBlocks = document.querySelectorAll('code.language-mermaid');
+            
+            mermaidBlocks.forEach(block => {
+                const pre = block.parentElement;
+                const container = document.createElement('div');
+                container.className = 'mermaid';
+                container.textContent = block.textContent;
+                container.dataset.originalText = block.textContent; // Save for re-rendering
+                
+                // Replace the original pre>code structure
+                pre.replaceWith(container);
+            });
+            
+            // Run initial render
+            await window.renderMermaid();
+        });
+    </script>
+    <script>
+        // Set default page
+        if (!window.location.hash) {
+            window.location.hash = '#getting-started-welcome';
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize syntax highlighting
+            hljs.highlightAll();
+
+            // Add Copy Buttons to all <pre> tags
+            const preBlocks = document.querySelectorAll('.page-content pre');
+            preBlocks.forEach(pre => {
+                // Skip mermaid blocks
+                if (pre.querySelector('.language-mermaid') || pre.classList.contains('mermaid')) return;
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-code-btn';
+                copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy';
+                
+                copyBtn.addEventListener('click', async () => {
+                    const code = pre.querySelector('code');
+                    if (!code) return;
+                    
+                    try {
+                        await navigator.clipboard.writeText(code.innerText);
+                        copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+                        copyBtn.classList.add('copied');
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy';
+                            copyBtn.classList.remove('copied');
+                        }, 2000);
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                    }
+                });
+                
+                pre.appendChild(copyBtn);
+            });
+        });
+    </script>
+</body>
+</html>

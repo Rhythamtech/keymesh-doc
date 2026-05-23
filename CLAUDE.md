@@ -1,225 +1,36 @@
-# CLAUDE.md
+# AI Agent Guidelines (KeyMesh Documentation)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Welcome, AI Agent! If you are reading this, you have been tasked with modifying or maintaining the KeyMesh documentation repository. Please adhere strictly strictly to the following rules and guidelines to maintain the project's integrity.
 
-## Project Overview
+## 1. Tech Stack (Strictly Vanilla)
+- **HTML, CSS, JS ONLY**.
+- **NO Frameworks**: Do not introduce React, Vue, Tailwind, Bootstrap, or any other framework.
+- **NO Build Tools**: Do not add `package.json`, `node_modules`, Webpack, Vite, or npm dependencies.
+- The entire site is a zero-dependency static Single Page Application (SPA).
 
-**keymesh-docs** is an Astro-based documentation theme with semantic vector search powered by libsql-search. It combines static site generation with server-rendered search using Turso (libSQL) for edge-optimized semantic search capabilities.
+## 2. Architecture & Routing
+- **File Structure**:
+  - `index.html`: Contains all the pre-rendered markdown content hidden in `<section>` tags.
+  - `style.css`: Contains all styling.
+  - `app.js`: Contains vanilla JavaScript for DOM manipulation and Hash Routing.
+- **Routing**: Navigation is handled purely via URL hashes (e.g., `#getting-started-welcome`). `app.js` listens for `hashchange` events and toggles the `.active` class on the corresponding `<section>`.
 
-## Essential Commands
+## 3. Design System (Brutalism)
+You must strictly follow the rules laid out in `DESIGN.md`. This is an unapologetic, anti-design brutalist system.
+- **Colors**: Black (`#000000`), White (`#FFFFFF`), and Blue (`#0000FF` for links only).
+- **Borders**: Thick black borders (1px, 3px, 5px).
+- **Corners**: `0px` border radius everywhere. NO exceptions.
+- **Shadows**: None. Visual hierarchy is achieved through border thickness.
+- **Typography**: 
+  - Headings: Archivo Black (uppercase)
+  - Body: Work Sans
+  - Code: Space Mono
+- **Interactions**: Full color inversion on hover/active states (black becomes white, white becomes black). No smooth CSS transitions.
 
-### Development
-```bash
-# Install dependencies
-pnpm install
+## 4. Modifying Content
+- If asked to update documentation content, you must manually edit the HTML inside `index.html`.
+- Keep the `<section>` IDs and the sidebar `data-id` attributes perfectly synchronized so that the hash routing continues to function.
 
-# Start dev server (runs on http://localhost:4321)
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
-```
-
-### Content Management
-```bash
-# Turso (default - requires .env with credentials)
-pnpm db:init    # Initialize Turso database schema
-pnpm index      # Index markdown content to Turso
-
-# Local libSQL (for CI/testing - no .env required)
-pnpm db:init:local   # Initialize local database (file:local.db)
-pnpm index:local     # Index to local database
-
-# Run tests
-pnpm test
-
-# Linting and formatting
-pnpm lint       # Check code with Biome
-pnpm lint:fix   # Auto-fix issues
-pnpm format     # Format all files
-```
-
-**Important:**
-- Always run `pnpm index` (or `pnpm index:local`) after adding/modifying content in `./content` directory before building.
-- Use `db:init` and `index` for production with Turso (loads `.env` file)
-- Use `db:init:local` and `index:local` for CI/local testing without Turso credentials
-- The dev server (`pnpm dev`) works with either database type
-
-## Architecture
-
-### Content Flow
-1. **Markdown → Database**: Content in `./content` is indexed into Turso via `scripts/index-content.ts`
-2. **libsql-search**: Handles embedding generation (local), vector storage, and semantic search
-3. **Static Generation**: Article pages are pre-rendered at build time using `getStaticPaths()`
-4. **Server Search**: Search API runs server-side at `/api/search.json` (requires `output: 'server'` with Node.js adapter)
-
-### Key Components
-- **Search.tsx**: Client-side search UI with debounced API calls (300ms), displays results in dropdown
-- **DocsHeader.astro**: Header with embedded search component
-- **DocsSidebar.astro**: Navigation sidebar built from folder structure in database
-- **DocsToc.tsx**: Auto-generated table of contents from article headings
-- **[...slug].astro**: Dynamic article pages, uses `getStaticPaths()` to pre-render all articles
-
-### Database Integration
-- **src/lib/turso.ts**: Singleton client wrapper, re-exports libsql-search utilities
-- **scripts/init-db.ts**: Initializes database schema with vector search support
-- **scripts/index-content.ts**: Indexes markdown files, creates table with 768-dimension vectors
-- All content queries use functions from libsql-search: `getAllArticles()`, `getArticleBySlug()`, `getArticlesByFolder()`, `getFolders()`
-
-### Environment Variables
-Optional in `.env`:
-- `TURSO_DB_URL`: Turso database URL (libsql://...) - if not set, uses local libSQL file
-- `TURSO_AUTH_TOKEN`: Turso authentication token - if not set, uses local libSQL file
-
-Embeddings run locally by default; no API keys are required.
-
-**Local Development**: If Turso credentials aren't provided, the project automatically falls back to a local SQLite file (`local.db`) for database operations. This is useful for CI builds and local development without cloud dependencies.
-
-## Critical Configuration
-
-### Server-Side Rendering + Node Adapter
-The search API endpoint requires SSR with an adapter. The configuration uses:
-- `output: 'server'` - Enables server-side rendering
-- `node({ mode: 'standalone' })` - For traditional Node.js deployments
-- Article pages marked with `prerender: true` are pre-rendered as static HTML
-- Search API marked with `prerender: false` runs server-side
-
-**Never** remove the adapter or change output to 'static', or the search API will break.
-
-### Content Structure
-Content in `./content` must follow this pattern:
-```
-content/
-├── folder-name/
-│   └── article.md
-```
-
-Folders become sidebar sections. Each markdown file can have optional frontmatter:
-```markdown
----
-title: Article Title
-tags: [tag1, tag2]
----
-```
-
-### Selective Pre-rendering
-- Article pages (`/content/[...slug].astro`): Pre-rendered static at build time (`export const prerender = true`)
-- Search API (`/api/search.json.ts`): Server-rendered on-demand (`export const prerender = false`)
-- This approach provides fast static pages with dynamic server-side search
-- Uses `getStaticPaths()` to generate all article pages at build time
-
-## Integration Points
-
-### Adding New libsql-search Features
-The project relies heavily on libsql-search. When modifying search behavior:
-1. Check libsql-search documentation for available options
-2. Update `scripts/index-content.ts` for indexing changes
-3. Update `src/pages/api/search.json.ts` for search query changes
-4. Maintain embedding dimension consistency (768) across indexing and search
-
-### Customizing Embeddings
-The embedding dimension (768) must match across:
-- `scripts/index-content.ts` (createTable and indexContent)
-- Search API
-- Re-index content after changing the embedding model or dimension
-
-### Styling
-- Uses Tailwind CSS 4 via Vite plugin
-- RGB hex colors for maximum browser compatibility
-- CSS variables defined in global.css for theming
-- Multi-theme system with 6 pre-built themes (dark, light, ocean, forest, sunset, purple)
-- ThemeSwitcher component allows runtime theme changes
-- Complementary colors for sidebar (darker) and TOC (lighter) in each theme
-
-### Security & Rate Limiting
-- In-memory rate limiting on search API: 20 requests per minute per IP
-- Query length validation: 500 character maximum
-- Results limit enforcement: 1-20 results
-- Standard rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
-- See `docs/SECURITY.md` for comprehensive security considerations
-
-## Deployment Options
-
-
-### Node.js Platforms (Vercel, Netlify, etc.)
-
-The project uses the Node.js adapter and can be deployed to any platform supporting Node.js:
-
-```bash
-# Build
-pnpm build
-
-# Deploy to your platform
-vercel deploy
-# or
-netlify deploy --prod
-```
-
-### Deployment Requirements
-- **Always run** `pnpm index` (or `pnpm index:local` for testing) before deploying to ensure content is indexed
-- Set environment variables (`TURSO_DB_URL`, `TURSO_AUTH_TOKEN`, etc.) in your deployment platform's dashboard
-- only run "pnpm lint:fix" or "biome check --write ." if there are less than 5 files to be modified and the changes are simple, otherwise fix linter issues manually
-
-## Pre-Commit Checks
-
-**IMPORTANT:** Before committing any changes, always run these checks to avoid CI failures:
-
-```bash
-# 1. Format code (fixes line length, import ordering, etc.)
-pnpm format
-
-# 2. Run linter (catches unused imports, type issues, etc.)
-pnpm lint
-
-# 3. TypeScript compilation check
-pnpm exec tsc --noEmit
-
-# 4. Run tests (if code changes affect functionality)
-pnpm test
-```
-
-**Quick one-liner:**
-```bash
-pnpm format && pnpm lint && pnpm exec tsc --noEmit
-```
-
-Common CI failures to watch for:
-- **Long lines** - Biome enforces line length limits; `pnpm format` fixes these
-- **Import ordering** - Types must come before values in imports; `pnpm format` fixes this
-- **Unused imports/variables** - Note: Biome has false positives for `.astro` files (disabled via override)
-
-## Commit Message Convention
-
-This project uses **Conventional Commits**. All commits must follow this format:
-
-```
-<type>(<scope>): <description>
-```
-
-### Commit Types
-| Type | Use For |
-|------|---------|
-| `feat:` | New features |
-| `fix:` | Bug fixes |
-| `docs:` | Documentation changes |
-| `perf:` | Performance improvements |
-| `refactor:` | Code refactoring (no feature change) |
-| `test:` | Adding or updating tests |
-| `ci:` | CI/CD changes |
-| `chore:` | Maintenance tasks |
-
-### Examples
-```bash
-feat: add user authentication
-fix(api): handle rate limit errors
-docs: update installation guide
-chore: bump dependencies
-```
-
-### Release Process
-1. Make commits following the convention above
-2. Create and push a version tag: `git tag v1.2.3 && git push --tags`
-3. GitHub Actions will automatically generate changelog and create release
+## 5. Development Philosophy
+- Keep it raw, fast, and simple.
+- If a UI element looks too "polished" or "modern Web 3.0", strip it back. It should look like it was assembled from HTML primitives.

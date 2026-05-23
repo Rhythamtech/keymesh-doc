@@ -1,72 +1,36 @@
-# KeyMesh Agent Instruction & Development Runbook
+# AI Agent Guidelines (KeyMesh Documentation)
 
-This document is the official instruction set and runbook for **AI Coding Agents** operating in the KeyMesh repository. All modifications, refactorings, and pull requests must adhere to the rules specified here.
+Welcome, AI Agent! If you are reading this, you have been tasked with modifying or maintaining the KeyMesh documentation repository. Please adhere strictly strictly to the following rules and guidelines to maintain the project's integrity.
 
----
+## 1. Tech Stack (Strictly Vanilla)
+- **HTML, CSS, JS ONLY**.
+- **NO Frameworks**: Do not introduce React, Vue, Tailwind, Bootstrap, or any other framework.
+- **NO Build Tools**: Do not add `package.json`, `node_modules`, Webpack, Vite, or npm dependencies.
+- The entire site is a zero-dependency static Single Page Application (SPA).
 
-## 🎯 Primary Agent Mandate
+## 2. Architecture & Routing
+- **File Structure**:
+  - `index.html`: Contains all the pre-rendered markdown content hidden in `<section>` tags.
+  - `style.css`: Contains all styling.
+  - `app.js`: Contains vanilla JavaScript for DOM manipulation and Hash Routing.
+- **Routing**: Navigation is handled purely via URL hashes (e.g., `#getting-started-welcome`). `app.js` listens for `hashchange` events and toggles the `.active` class on the corresponding `<section>`.
 
-You are tasked with maintaining a production-grade, highly performant, async-safe Python codebase. **KeyMesh** must remain lightweight and zero-dependency (outside of optional async DB drivers/caches).
+## 3. Design System (Brutalism)
+You must strictly follow the rules laid out in `DESIGN.md`. This is an unapologetic, anti-design brutalist system.
+- **Colors**: Black (`#000000`), White (`#FFFFFF`), and Blue (`#0000FF` for links only).
+- **Borders**: Thick black borders (1px, 3px, 5px).
+- **Corners**: `0px` border radius everywhere. NO exceptions.
+- **Shadows**: None. Visual hierarchy is achieved through border thickness.
+- **Typography**: 
+  - Headings: Archivo Black (uppercase)
+  - Body: Work Sans
+  - Code: Space Mono
+- **Interactions**: Full color inversion on hover/active states (black becomes white, white becomes black). No smooth CSS transitions.
 
-> [!WARNING]
-> **Strict Limits on Scope & Dependencies:**
-> - **DO NOT** add or import high-overhead frameworks like FastAPI, Flask, or Django.
-> - **DO NOT** try to wrap model APIs or implement chat-payload formatters.
-> - **DO NOT** use global mutable states or create tight couplings to third-party SDKs.
-> - **DO NOT** implement proxy servers or HTTP middleware layers inside KeyMesh.
+## 4. Modifying Content
+- If asked to update documentation content, you must manually edit the HTML inside `index.html`.
+- Keep the `<section>` IDs and the sidebar `data-id` attributes perfectly synchronized so that the hash routing continues to function.
 
----
-
-## 🛠️ Tooling & Workspace Standards
-
-We use **`uv`** as the default package and project manager. Always configure custom writable cache paths when invoking `uv` commands in restricted environments to avoid directory permissions issues.
-
-### Cache Directory Override:
-```bash
-mkdir -p ~/.uv_cache
-export UV_CACHE_DIR=~/.uv_cache
-```
-
-### Useful CLI Commands for Agents:
-- **Run the test suite:**
-  ```bash
-  python -m pytest tests/ -v
-  ```
-- **Execute type checking & static analysis:**
-  ```bash
-  mypy keymesh/
-  ruff check keymesh/
-  ```
-- **Execute runtime demo:**
-  ```bash
-  python main.py
-  ```
-
----
-
-## 🧬 Coding Guidelines & Code Style
-
-Agents must produce pristine code conforming to the following standards:
-
-1. **Type Annotation**: Every single function parameter, return value, and class field must be fully typed. Use strict `mypy` style annotations.
-2. **Concurrency Patterns**:
-   - Mutate shared state safely using `asyncio.Lock`.
-   - Protect global/pool-level operations using `self._pool_lock`.
-   - Prefer thread-safe atomics or thread locks (`threading.Lock`) for synchronous shared resources (e.g. `RoundRobinScheduler._index`).
-3. **Graceful Error Handling**:
-   - Never let internal exceptions leak directly without being wrapped in subclasses of `KeyMeshError`.
-   - Handle edge-cases such as empty pools, all keys rate-limited, and key exhaustion cleanly.
-4. **EMA Calculations**:
-   - Key latencies must be smoothed using Exponential Moving Average (EMA) with an default alpha of `0.2` to avoid heavy volatility from individual network hiccups:
-     $$\text{Latency}_{\text{avg}} = \alpha \cdot \text{Latency}_{\text{new}} + (1 - \alpha) \cdot \text{Latency}_{\text{prev}}$$
-
----
-
-## 🧪 Test Requirements
-
-- Every new scheduler, persistence backend, or concurrency utility must be accompanied by comprehensive tests under `tests/`.
-- Tests must use `pytest-asyncio` with `asyncio_mode = "auto"`.
-- Test suites must verify:
-  - Behavior under high concurrency (multiple simultaneous acquisitions).
-  - Recovery from failure states (exhaustion and cooldown expiry).
-  - Expected distribution rates for scheduling strategies.
+## 5. Development Philosophy
+- Keep it raw, fast, and simple.
+- If a UI element looks too "polished" or "modern Web 3.0", strip it back. It should look like it was assembled from HTML primitives.
